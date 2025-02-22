@@ -5,14 +5,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.banquito.paymentprocessor.procesatransaccion.banquito.controller.dto.TransaccionDTO;
@@ -20,12 +17,15 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.controller.mapp
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Transaccion;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.service.TransaccionService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
-@RequestMapping("/v1/transacciones")
+@RequestMapping("/api/v1/transacciones")
+@Tag(name = "Transacciones", description = "API para procesar transacciones de pago")
 public class TransaccionController {
 
     private final TransaccionService service;
@@ -69,25 +69,17 @@ public class TransaccionController {
         return ResponseEntity.ok(transacciones);
     }
 
-    @PostMapping
-    public ResponseEntity<TransaccionDTO> crearTransaccion(@Valid @RequestBody TransaccionDTO transaccionDTO) {
-        log.debug("Creando nueva transacción");
-        Transaccion transaccion = this.service.create(mapper.toModel(transaccionDTO));
-        return ResponseEntity.ok(mapper.toDTO(transaccion));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<TransaccionDTO> actualizarTransaccion(@PathVariable String id, 
-            @Valid @RequestBody TransaccionDTO transaccionDTO) {
-        log.debug("Actualizando transacción con id: {}", id);
-        Transaccion transaccion = this.service.update(id, mapper.toModel(transaccionDTO));
-        return ResponseEntity.ok(mapper.toDTO(transaccion));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminarTransaccion(@PathVariable String id) {
-        log.debug("Eliminando transacción con id: {}", id);
-        this.service.delete(id);
-        return ResponseEntity.noContent().build();
+    @PostMapping("/procesar")
+    @Operation(summary = "Procesa una nueva transacción", 
+              description = "Recibe y procesa una nueva transacción de pago, validando los datos y actualizando su estado")
+    public ResponseEntity<TransaccionDTO> procesarTransaccion(@Valid @RequestBody TransaccionDTO transaccionDTO) {
+        log.info("Procesando nueva transacción: {}", transaccionDTO);
+        return ResponseEntity.ok(
+            mapper.toDTO(
+                service.procesarTransaccion(
+                    mapper.toModel(transaccionDTO)
+                )
+            )
+        );
     }
 } 
