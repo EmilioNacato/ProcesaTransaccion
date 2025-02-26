@@ -1,5 +1,9 @@
 package com.banquito.paymentprocessor.procesatransaccion.banquito.service;
 
+import com.banquito.paymentprocessor.procesatransaccion.banquito.client.*;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.dto.*;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.TransaccionRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
