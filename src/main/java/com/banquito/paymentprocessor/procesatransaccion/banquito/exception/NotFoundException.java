@@ -1,17 +1,11 @@
 package com.banquito.paymentprocessor.procesatransaccion.banquito.exception;
 
 public class NotFoundException extends RuntimeException {
-    private final String data;
-    private final String entity;
-
-    public NotFoundException(String data, String entity) {
-        super();
-        this.data = data;
-        this.entity = entity;
+    public NotFoundException(String message) {
+        super(message);
     }
 
-    @Override
-    public String getMessage() {
-        return "No se encontró ninguna coincidencia para: " + this.entity + ", con el dato: " + data;
+    public NotFoundException(String id, String entity) {
+        super("No se encontró " + entity + " con id: " + id);
     }
 } 

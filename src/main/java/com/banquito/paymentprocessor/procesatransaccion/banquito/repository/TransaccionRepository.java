@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Transaccion;
 
 @Repository
-public interface TransaccionRepository extends JpaRepository<Transaccion, String> {
+public interface TransaccionRepository extends JpaRepository<Transaccion, Long> {
     
     Optional<Transaccion> findByCodigoUnico(String codigoUnico);
     

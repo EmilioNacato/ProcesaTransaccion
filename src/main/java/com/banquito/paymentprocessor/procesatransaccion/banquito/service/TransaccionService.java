@@ -6,7 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.BancoClient;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.FraudeClient;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.MarcaClient;
-import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.*;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ProcesoBancarioRequest;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Transaccion;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.HistorialEstadoTransaccion;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.TransaccionRepository;
@@ -14,14 +14,17 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.Hist
 import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.NotFoundException;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.TransaccionRechazadaException;
 
+
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@Service
 @Slf4j
+@Service
+@RequiredArgsConstructor
 public class TransaccionService {
 
     private final TransaccionRepository transaccionRepository;
@@ -29,83 +32,31 @@ public class TransaccionService {
     private final MarcaClient marcaClient;
     private final FraudeClient fraudeClient;
     private final BancoClient bancoClient;
-
-    public TransaccionService(TransaccionRepository transaccionRepository,
-                            HistorialEstadoTransaccionRepository historialRepository,
-                            MarcaClient marcaClient,
-                            FraudeClient fraudeClient,
-                            BancoClient bancoClient) {
-        this.transaccionRepository = transaccionRepository;
-        this.historialRepository = historialRepository;
-        this.marcaClient = marcaClient;
-        this.fraudeClient = fraudeClient;
-        this.bancoClient = bancoClient;
-    }
+    private final RedisService redisService;
 
     @Transactional
     public Transaccion procesarTransaccion(Transaccion transaccion) {
-        log.info("Iniciando procesamiento de transacción");
-        
-        // 1. Inicializar transacción
-        transaccion.setCodTransaccion(UUID.randomUUID().toString().substring(0, 10));
+        log.info("Procesando transacción: {}", transaccion);
         transaccion.setFechaTransaccion(LocalDateTime.now());
-        transaccion.setEstado("PEN"); // Pendiente
-        Transaccion transaccionGuardada = transaccionRepository.save(transaccion);
-        registrarHistorialEstado(transaccionGuardada, "PEN", "Transacción recibida");
+        transaccion.setEstado("PENDIENTE");
+        transaccion.setCodTransaccion(UUID.randomUUID().toString().substring(0, 10));
         
-        try {
-            // 2. Validar con marca
-            log.info("Iniciando validación con marca");
-            ValidacionMarcaResponse respuestaMarca = marcaClient.validarTarjeta(
-                new ValidacionMarcaRequest(transaccion.getNumeroTarjeta(), transaccion.getMonto(), transaccion.getCodTransaccion())
-            );
-            
-            if (!respuestaMarca.getTarjetaValida()) {
-                actualizarEstadoTransaccion(transaccionGuardada, "REJ", "Tarjeta inválida: " + respuestaMarca.getMensaje());
-                throw new TransaccionRechazadaException("Tarjeta inválida: " + respuestaMarca.getMensaje());
-            }
-            
-            transaccionGuardada.setSwiftBanco(respuestaMarca.getSwiftBanco());
-            actualizarEstadoTransaccion(transaccionGuardada, "VAL", "Tarjeta validada con marca");
-            
-            // 3. Validar fraude
-            log.info("Iniciando validación de fraude");
-            ValidacionFraudeResponse respuestaFraude = fraudeClient.validarTransaccion(
-                new ValidacionFraudeRequest(transaccion.getNumeroTarjeta(), transaccion.getMonto(), 
-                                         transaccion.getCodTransaccion(), respuestaMarca.getSwiftBanco())
-            );
-            
-            if (!respuestaFraude.getTransaccionValida()) {
-                actualizarEstadoTransaccion(transaccionGuardada, "FRA", "Fraude detectado: " + respuestaFraude.getMensaje());
-                throw new TransaccionRechazadaException("Fraude detectado: " + respuestaFraude.getMensaje());
-            }
-            
-            actualizarEstadoTransaccion(transaccionGuardada, "PRO", "Validación de fraude exitosa");
-            
-            // 4. Procesar con banco
-            log.info("Iniciando procesamiento con banco");
-            ProcesoBancarioResponse respuestaBanco = bancoClient.procesarTransaccion(
-                new ProcesoBancarioRequest(transaccion.getNumeroTarjeta(), transaccion.getMonto(),
-                                         transaccion.getCodTransaccion(), transaccion.getSwiftBanco(),
-                                         "REF-" + transaccion.getCodTransaccion())
-            );
-            
-            if (!respuestaBanco.getTransaccionExitosa()) {
-                actualizarEstadoTransaccion(transaccionGuardada, "REJ", "Rechazada por banco: " + respuestaBanco.getMensaje());
-                throw new TransaccionRechazadaException("Transacción rechazada por el banco: " + respuestaBanco.getMensaje());
-            }
-            
-            // 5. Finalizar transacción exitosa
-            actualizarEstadoTransaccion(transaccionGuardada, "APR", "Transacción aprobada");
-            return transaccionGuardada;
-            
-        } catch (Exception e) {
-            log.error("Error procesando transacción: {}", e.getMessage());
-            if ("PEN".equals(transaccionGuardada.getEstado())) {
-                actualizarEstadoTransaccion(transaccionGuardada, "ERR", "Error en procesamiento: " + e.getMessage());
-            }
-            throw e;
+        Transaccion transaccionGuardada = transaccionRepository.save(transaccion);
+        redisService.saveTransaccion(transaccionGuardada);
+        
+        log.info("Transacción procesada exitosamente: {}", transaccionGuardada);
+        return transaccionGuardada;
+    }
+
+    public Transaccion obtenerTransaccion(Long id) {
+        log.info("Buscando transacción con ID: {}", id);
+        Transaccion transaccionRedis = redisService.getTransaccion(id);
+        if (transaccionRedis != null) {
+            log.info("Transacción encontrada en Redis: {}", transaccionRedis);
+            return transaccionRedis;
         }
+        return transaccionRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Transacción no encontrada con ID: " + id));
     }
 
     @Transactional
@@ -127,11 +78,6 @@ public class TransaccionService {
 
     public List<Transaccion> findAll() {
         return transaccionRepository.findAll();
-    }
-
-    public Transaccion findById(String id) {
-        return transaccionRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException(id, "Transaccion"));
     }
 
     public List<Transaccion> findByNumeroTarjeta(String numeroTarjeta) {
