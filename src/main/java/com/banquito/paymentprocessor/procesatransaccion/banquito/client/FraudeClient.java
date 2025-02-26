@@ -10,6 +10,6 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.Vali
 @FeignClient(name = "fraude-service", url = "${app.fraude-service.url}")
 public interface FraudeClient {
     
-    @PostMapping("/api/v1/validacion")
+    @PostMapping("/api/v1/fraude/validar")
     ValidacionFraudeResponse validarTransaccion(@RequestBody ValidacionFraudeRequest request);
 } 
