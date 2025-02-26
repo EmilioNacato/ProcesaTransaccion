@@ -46,7 +46,7 @@ public class TransaccionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<TransaccionDTO> obtenerTransaccionPorId(@PathVariable String id) {
+    public ResponseEntity<TransaccionDTO> obtenerTransaccionPorId(@PathVariable Long id) {
         log.debug("Obteniendo transacción con id: {}", id);
         return ResponseEntity.ok(mapper.toDTO(this.service.findById(id)));
     }
