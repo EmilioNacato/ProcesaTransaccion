@@ -5,24 +5,20 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
+import lombok.Data;
 
 @Entity
-@Table(name = "TRANSACCION")
-@Getter
-@Setter
-@NoArgsConstructor
-@ToString
+@Table(name = "transaccion")
+@Data
 public class Transaccion {
 
     @Id
-    @Column(name = "COD_TRANSACCION", length = 10)
-    private String codTransaccion;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @Column(name = "NUMERO_TARJETA", length = 16, nullable = false)
     private String numeroTarjeta;
