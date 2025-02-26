@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 
 @Service
 @Slf4j
@@ -47,7 +48,7 @@ public class TransaccionService {
         log.info("Iniciando procesamiento de transacción");
         
         // 1. Inicializar transacción
-        transaccion.setCodTransaccion(UUID.randomUUID().toString().substring(0, 10));
+        transaccion.setCodigoUnico(UUID.randomUUID().toString().substring(0, 10));
         transaccion.setFechaTransaccion(LocalDateTime.now());
         transaccion.setEstado("PEN"); // Pendiente
         Transaccion transaccionGuardada = transaccionRepository.save(transaccion);
@@ -57,7 +58,7 @@ public class TransaccionService {
             // 2. Validar con marca
             log.info("Iniciando validación con marca");
             ValidacionMarcaResponse respuestaMarca = marcaClient.validarTarjeta(
-                new ValidacionMarcaRequest(transaccion.getNumeroTarjeta(), transaccion.getMonto(), transaccion.getCodTransaccion())
+                new ValidacionMarcaRequest(transaccion.getNumeroTarjeta(), transaccion.getMonto(), transaccion.getCodigoUnico())
             );
             
             if (!respuestaMarca.getTarjetaValida()) {
@@ -72,7 +73,7 @@ public class TransaccionService {
             log.info("Iniciando validación de fraude");
             ValidacionFraudeResponse respuestaFraude = fraudeClient.validarTransaccion(
                 new ValidacionFraudeRequest(transaccion.getNumeroTarjeta(), transaccion.getMonto(), 
-                                         transaccion.getCodTransaccion(), respuestaMarca.getSwiftBanco())
+                                         transaccion.getCodigoUnico(), respuestaMarca.getSwiftBanco())
             );
             
             if (!respuestaFraude.getTransaccionValida()) {
@@ -86,8 +87,8 @@ public class TransaccionService {
             log.info("Iniciando procesamiento con banco");
             ProcesoBancarioResponse respuestaBanco = bancoClient.procesarTransaccion(
                 new ProcesoBancarioRequest(transaccion.getNumeroTarjeta(), transaccion.getMonto(),
-                                         transaccion.getCodTransaccion(), transaccion.getSwiftBanco(),
-                                         "REF-" + transaccion.getCodTransaccion())
+                                         transaccion.getCodigoUnico(), transaccion.getSwiftBanco(),
+                                         "REF-" + transaccion.getCodigoUnico())
             );
             
             if (!respuestaBanco.getTransaccionExitosa()) {
@@ -118,7 +119,7 @@ public class TransaccionService {
     private void registrarHistorialEstado(Transaccion transaccion, String estado, String mensaje) {
         HistorialEstadoTransaccion historial = new HistorialEstadoTransaccion();
         historial.setCodHistorialEstado(UUID.randomUUID().toString().substring(0, 10));
-        historial.setCodTransaccion(transaccion.getCodTransaccion());
+        historial.setCodTransaccion(transaccion.getCodigoUnico());
         historial.setEstado(estado);
         historial.setFechaEstadoCambio(LocalDateTime.now());
         historialRepository.save(historial);
@@ -129,9 +130,9 @@ public class TransaccionService {
         return transaccionRepository.findAll();
     }
 
-    public Transaccion findById(String id) {
+    public Transaccion findById(Long id) {
         return transaccionRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException(id, "Transaccion"));
+                .orElseThrow(() -> new NotFoundException(id.toString(), "Transaccion"));
     }
 
     public List<Transaccion> findByNumeroTarjeta(String numeroTarjeta) {
@@ -140,5 +141,40 @@ public class TransaccionService {
 
     public List<Transaccion> findByEstado(String estado) {
         return transaccionRepository.findByEstado(estado);
+    }
+
+    public Transaccion crearTransaccion(Transaccion transaccion) {
+        log.info("Creando transacción");
+        transaccion.setCodigoUnico(UUID.randomUUID().toString().substring(0, 10));
+        return transaccionRepository.save(transaccion);
+    }
+
+    public Optional<Transaccion> buscarPorCodigoUnico(String codigoUnico) {
+        log.info("Buscando transacción por código único: {}", codigoUnico);
+        return transaccionRepository.findByCodigoUnico(codigoUnico);
+    }
+
+    public List<Transaccion> buscarPorNumeroTarjeta(String numeroTarjeta) {
+        log.info("Buscando transacciones por número de tarjeta: {}", numeroTarjeta);
+        return transaccionRepository.findByNumeroTarjeta(numeroTarjeta);
+    }
+
+    public List<Transaccion> buscarPorEstado(String estado) {
+        log.info("Buscando transacciones por estado: {}", estado);
+        return transaccionRepository.findByEstado(estado);
+    }
+
+    public List<Transaccion> buscarPorSwiftBanco(String swiftBanco) {
+        log.info("Buscando transacciones por swift banco: {}", swiftBanco);
+        return transaccionRepository.findBySwiftBanco(swiftBanco);
+    }
+
+    public Transaccion findByCodigoUnico(String codigoUnico) {
+        return transaccionRepository.findByCodigoUnico(codigoUnico)
+                .orElseThrow(() -> new NotFoundException(codigoUnico, "Transaccion"));
+    }
+
+    private String generarCodigoUnico() {
+        return "TX" + System.currentTimeMillis();
     }
 } 
