@@ -7,13 +7,14 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.client.BancoCli
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.FraudeClient;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.MarcaClient;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ProcesoBancarioRequest;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionFraudeRequest;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionFraudeResponse;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Transaccion;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.HistorialEstadoTransaccion;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.TransaccionRepository;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.HistorialEstadoTransaccionRepository;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.NotFoundException;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.TransaccionRechazadaException;
-
 
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
@@ -37,14 +38,41 @@ public class TransaccionService {
     @Transactional
     public Transaccion procesarTransaccion(Transaccion transaccion) {
         log.info("Procesando transacción: {}", transaccion);
+        
+        // Inicializar transacción
         transaccion.setFechaTransaccion(LocalDateTime.now());
         transaccion.setEstado("PENDIENTE");
         transaccion.setCodTransaccion(UUID.randomUUID().toString().substring(0, 10));
         
         Transaccion transaccionGuardada = transaccionRepository.save(transaccion);
-        redisService.saveTransaccion(transaccionGuardada);
+        registrarHistorialEstado(transaccionGuardada, "PENDIENTE", "Transacción recibida");
         
-        log.info("Transacción procesada exitosamente: {}", transaccionGuardada);
+        try {
+            // Validar fraude
+            log.info("Iniciando validación de fraude");
+            ValidacionFraudeRequest fraudeRequest = new ValidacionFraudeRequest();
+            fraudeRequest.setNumeroTarjeta(transaccion.getNumeroTarjeta());
+            fraudeRequest.setMonto(transaccion.getMonto());
+            fraudeRequest.setCodTransaccion(transaccion.getCodTransaccion());
+            
+            ValidacionFraudeResponse fraudeResponse = fraudeClient.validarTransaccion(fraudeRequest);
+            
+            if (!fraudeResponse.getTransaccionValida()) {
+                actualizarEstadoTransaccion(transaccionGuardada, "FRAUDE", 
+                    "Fraude detectado: " + fraudeResponse.getMensaje());
+                throw new TransaccionRechazadaException("Fraude detectado: " + fraudeResponse.getMensaje());
+            }
+            
+            actualizarEstadoTransaccion(transaccionGuardada, "VALIDADA", "Validación de fraude exitosa");
+            
+        } catch (Exception e) {
+            log.error("Error procesando transacción: {}", e.getMessage());
+            actualizarEstadoTransaccion(transaccionGuardada, "ERROR", 
+                "Error en validación: " + e.getMessage());
+            throw e;
+        }
+        
+        redisService.saveTransaccion(transaccionGuardada);
         return transaccionGuardada;
     }
 

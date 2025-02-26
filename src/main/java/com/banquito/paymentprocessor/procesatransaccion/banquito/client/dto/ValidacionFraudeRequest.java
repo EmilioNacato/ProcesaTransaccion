@@ -20,7 +20,7 @@ public class ValidacionFraudeRequest {
     private BigDecimal monto;
     
     @Schema(description = "Código único de la transacción", example = "TRX1234567")
-    private String codigoTransaccion;
+    private String codTransaccion;
     
     @Schema(description = "Código SWIFT del banco", example = "BANKEC21")
     private String swiftBanco;

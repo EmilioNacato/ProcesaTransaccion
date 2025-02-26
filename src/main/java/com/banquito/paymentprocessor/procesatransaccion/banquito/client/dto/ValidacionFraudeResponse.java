@@ -14,4 +14,7 @@ public class ValidacionFraudeResponse {
     
     @Schema(description = "Mensaje informativo del proceso", example = "No se detectó fraude")
     private String mensaje;
+    
+    @Schema(description = "Código de respuesta", example = "200")
+    private String codigoRespuesta;
 } 
