@@ -1,6 +1,5 @@
 package com.banquito.paymentprocessor.procesatransaccion.banquito.controller;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -14,7 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.banquito.paymentprocessor.procesatransaccion.banquito.controller.dto.TransaccionDTO;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.controller.mapper.TransaccionMapper;
-import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Transaccion;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.service.TransaccionService;
 
 import io.swagger.v3.oas.annotations.Operation;
