@@ -15,6 +15,9 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.Tran
 import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.HistorialEstadoTransaccionRepository;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.NotFoundException;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.TransaccionRechazadaException;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.client.ValidaFraudeClient;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.client.ValidaMarcaClient;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.*;
 
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
@@ -34,46 +37,71 @@ public class TransaccionService {
     private final FraudeClient fraudeClient;
     private final BancoClient bancoClient;
     private final RedisService redisService;
+    private final ValidaFraudeClient validaFraudeClient;
+    private final ValidaMarcaClient validaMarcaClient;
 
     @Transactional
     public Transaccion procesarTransaccion(Transaccion transaccion) {
-        log.info("Procesando transacción: {}", transaccion);
+        log.info("Iniciando procesamiento de transacción");
         
         // Inicializar transacción
         transaccion.setFechaTransaccion(LocalDateTime.now());
         transaccion.setEstado("PENDIENTE");
         transaccion.setCodTransaccion(UUID.randomUUID().toString().substring(0, 10));
         
-        Transaccion transaccionGuardada = transaccionRepository.save(transaccion);
-        registrarHistorialEstado(transaccionGuardada, "PENDIENTE", "Transacción recibida");
-        
         try {
-            // Validar fraude
+            // 1. Validar Fraude
             log.info("Iniciando validación de fraude");
-            ValidacionFraudeRequest fraudeRequest = new ValidacionFraudeRequest();
+            ValidacionFraudeRequestDTO fraudeRequest = new ValidacionFraudeRequestDTO();
             fraudeRequest.setNumeroTarjeta(transaccion.getNumeroTarjeta());
             fraudeRequest.setMonto(transaccion.getMonto());
-            fraudeRequest.setCodTransaccion(transaccion.getCodTransaccion());
+            fraudeRequest.setCodigoComercio(transaccion.getEstablecimiento());
+
+            ValidacionFraudeResponseDTO fraudeResponse = validaFraudeClient.validarTransaccion(fraudeRequest);
             
-            ValidacionFraudeResponse fraudeResponse = fraudeClient.validarTransaccion(fraudeRequest);
-            
-            if (!fraudeResponse.getTransaccionValida()) {
-                actualizarEstadoTransaccion(transaccionGuardada, "FRAUDE", 
-                    "Fraude detectado: " + fraudeResponse.getMensaje());
+            if (fraudeResponse.isEsFraude()) {
+                actualizarEstadoTransaccion(transaccion, "FRAUDE", 
+                    "Transacción rechazada por fraude: " + fraudeResponse.getMensaje());
                 throw new TransaccionRechazadaException("Fraude detectado: " + fraudeResponse.getMensaje());
             }
+
+            // 2. Validar Marca
+            log.info("Iniciando validación de marca");
+            ValidacionMarcaRequestDTO marcaRequest = new ValidacionMarcaRequestDTO();
+            marcaRequest.setNumeroTarjeta(transaccion.getNumeroTarjeta());
+            marcaRequest.setMarca(obtenerMarcaTarjeta(transaccion.getNumeroTarjeta()));
+            marcaRequest.setCvv(transaccion.getCvv());
+            marcaRequest.setFechaCaducidad(transaccion.getFechaCaducidad());
+
+            ValidacionMarcaResponseDTO marcaResponse = validaMarcaClient.validarMarca(marcaRequest);
             
-            actualizarEstadoTransaccion(transaccionGuardada, "VALIDADA", "Validación de fraude exitosa");
+            if (!marcaResponse.isTarjetaValida()) {
+                actualizarEstadoTransaccion(transaccion, "RECHAZADA", 
+                    "Tarjeta inválida: " + marcaResponse.getMensaje());
+                throw new TransaccionRechazadaException("Tarjeta inválida: " + marcaResponse.getMensaje());
+            }
+
+            // Actualizar SWIFT del banco
+            transaccion.setSwiftBanco(marcaResponse.getSwiftBanco());
             
+            // 3. Guardar en Redis temporalmente
+            redisService.saveTransaccion(transaccion);
+            
+            // 4. Guardar en PostgreSQL
+            Transaccion transaccionGuardada = transaccionRepository.save(transaccion);
+            actualizarEstadoTransaccion(transaccionGuardada, "VALIDADA", 
+                "Transacción validada correctamente");
+            
+            return transaccionGuardada;
+            
+        } catch (TransaccionRechazadaException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Error procesando transacción: {}", e.getMessage());
-            actualizarEstadoTransaccion(transaccionGuardada, "ERROR", 
-                "Error en validación: " + e.getMessage());
-            throw e;
+            actualizarEstadoTransaccion(transaccion, "ERROR", 
+                "Error en procesamiento: " + e.getMessage());
+            throw new RuntimeException("Error procesando transacción", e);
         }
-        
-        redisService.saveTransaccion(transaccionGuardada);
-        return transaccionGuardada;
     }
 
     public Transaccion obtenerTransaccion(Long id) {
@@ -88,10 +116,11 @@ public class TransaccionService {
     }
 
     @Transactional
-    private void actualizarEstadoTransaccion(Transaccion transaccion, String nuevoEstado, String mensaje) {
-        transaccion.setEstado(nuevoEstado);
+    private void actualizarEstadoTransaccion(Transaccion transaccion, String estado, String mensaje) {
+        transaccion.setEstado(estado);
         transaccionRepository.save(transaccion);
-        registrarHistorialEstado(transaccion, nuevoEstado, mensaje);
+        registrarHistorialEstado(transaccion, estado, mensaje);
+        log.info("Estado de transacción actualizado a: {} - {}", estado, mensaje);
     }
 
     private void registrarHistorialEstado(Transaccion transaccion, String estado, String mensaje) {
@@ -99,9 +128,16 @@ public class TransaccionService {
         historial.setCodHistorialEstado(UUID.randomUUID().toString().substring(0, 10));
         historial.setCodTransaccion(transaccion.getCodTransaccion());
         historial.setEstado(estado);
+        historial.setMensaje(mensaje);
         historial.setFechaEstadoCambio(LocalDateTime.now());
         historialRepository.save(historial);
-        log.info("Estado de transacción actualizado: {} - {}", estado, mensaje);
+    }
+
+    private String obtenerMarcaTarjeta(String numeroTarjeta) {
+        if (numeroTarjeta.startsWith("4")) return "VISA";
+        if (numeroTarjeta.startsWith("5")) return "MASTERCARD";
+        if (numeroTarjeta.startsWith("34") || numeroTarjeta.startsWith("37")) return "AMEX";
+        return "DESCONOCIDA";
     }
 
     public List<Transaccion> findAll() {

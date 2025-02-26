@@ -47,6 +47,18 @@ public class Transaccion {
     private String numeroTarjeta;
     
     @NotNull
+    @Size(min = 3, max = 4)
+    @Column(name = "CVV", length = 4, nullable = false)
+    @Schema(description = "Código de seguridad de la tarjeta", example = "123")
+    private String cvv;
+    
+    @NotNull
+    @Pattern(regexp = "^(0[1-9]|1[0-2])/([0-9]{2})$", message = "Formato de fecha inválido (MM/YY)")
+    @Column(name = "FECHA_CADUCIDAD", length = 5, nullable = false)
+    @Schema(description = "Fecha de caducidad de la tarjeta", example = "12/25")
+    private String fechaCaducidad;
+    
+    @NotNull
     @DecimalMin(value = "0.01", message = "El monto debe ser mayor a 0")
     @Column(name = "MONTO", precision = 18, scale = 2, nullable = false)
     @Schema(description = "Monto de la transacción", example = "100.50")
