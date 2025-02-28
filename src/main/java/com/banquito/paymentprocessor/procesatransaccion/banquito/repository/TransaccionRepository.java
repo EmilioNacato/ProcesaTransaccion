@@ -11,7 +11,7 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Transacci
 @Repository
 public interface TransaccionRepository extends JpaRepository<Transaccion, Long> {
     
-    Optional<Transaccion> findByCodigoUnico(String codigoUnico);
+    Optional<Transaccion> findByCodTransaccion(String codTransaccion);
     
     List<Transaccion> findByNumeroTarjeta(String numeroTarjeta);
     

@@ -8,7 +8,7 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Historial
 import java.util.List;
 
 @Repository
-public interface HistorialEstadoTransaccionRepository extends JpaRepository<HistorialEstadoTransaccion, String> {
+public interface HistorialEstadoTransaccionRepository extends JpaRepository<HistorialEstadoTransaccion, Long> {
     List<HistorialEstadoTransaccion> findByCodTransaccion(String codTransaccion);
     List<HistorialEstadoTransaccion> findByEstado(String estado);
 } 

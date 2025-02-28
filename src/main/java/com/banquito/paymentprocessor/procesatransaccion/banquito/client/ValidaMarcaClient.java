@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionMarcaRequestDTO;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionMarcaResponseDTO;
 
-@FeignClient(name = "validamarca", url = "${validamarca.url}")
+@FeignClient(name = "validamarca", url = "${app.marca-service.url}")
 public interface ValidaMarcaClient {
     
     @PostMapping("/api/v1/marca/validar")

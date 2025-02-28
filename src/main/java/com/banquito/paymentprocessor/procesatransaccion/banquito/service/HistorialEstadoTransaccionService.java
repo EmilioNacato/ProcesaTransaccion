@@ -27,9 +27,9 @@ public class HistorialEstadoTransaccionService {
         return this.historialRepository.findAll();
     }
 
-    public HistorialEstadoTransaccion findById(String id) {
+    public HistorialEstadoTransaccion findById(Long id) {
         return this.historialRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException(id, "HistorialEstadoTransaccion"));
+                .orElseThrow(() -> new NotFoundException(id.toString(), "HistorialEstadoTransaccion"));
     }
 
     public List<HistorialEstadoTransaccion> findByCodTransaccion(String codTransaccion) {
@@ -49,7 +49,7 @@ public class HistorialEstadoTransaccionService {
     }
 
     @Transactional
-    public void delete(String id) {
+    public void delete(Long id) {
         log.debug("Eliminando historial de estado con id: {}", id);
         HistorialEstadoTransaccion historial = this.findById(id);
         this.historialRepository.delete(historial);

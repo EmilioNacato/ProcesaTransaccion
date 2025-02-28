@@ -70,7 +70,7 @@ public class HistorialEstadoTransaccionController {
             @Parameter(description = "ID del historial", required = true)
             @PathVariable String id) {
         log.debug("Obteniendo historial con id: {}", id);
-        return ResponseEntity.ok(mapper.toDTO(this.service.findById(id)));
+        return ResponseEntity.ok(mapper.toDTO(this.service.findById(Long.valueOf(id))));
     }
 
     @GetMapping("/transaccion/{codTransaccion}")
@@ -145,7 +145,7 @@ public class HistorialEstadoTransaccionController {
             @Parameter(description = "ID del historial a eliminar", required = true)
             @PathVariable String id) {
         log.debug("Eliminando historial con id: {}", id);
-        this.service.delete(id);
+        this.service.delete(Long.valueOf(id));
         return ResponseEntity.noContent().build();
     }
 } 

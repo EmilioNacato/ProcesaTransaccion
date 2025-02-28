@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionFraudeRequestDTO;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionFraudeResponseDTO;
 
-@FeignClient(name = "validafraude", url = "${validafraude.url}")
+@FeignClient(name = "validafraude", url = "${app.fraude-service.url}")
 public interface ValidaFraudeClient {
     
     @PostMapping("/api/v1/fraude/validar")
