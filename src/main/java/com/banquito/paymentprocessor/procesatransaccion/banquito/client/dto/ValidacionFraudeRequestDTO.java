@@ -8,4 +8,6 @@ public class ValidacionFraudeRequestDTO {
     private String numeroTarjeta;
     private BigDecimal monto;
     private String codigoComercio;
+    private String codigoUnico;
+    private String tipoTransaccion;
 } 

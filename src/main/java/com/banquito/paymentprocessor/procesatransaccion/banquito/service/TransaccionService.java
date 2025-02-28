@@ -56,6 +56,8 @@ public class TransaccionService {
             fraudeRequest.setNumeroTarjeta(transaccion.getNumeroTarjeta());
             fraudeRequest.setMonto(transaccion.getMonto());
             fraudeRequest.setCodigoComercio(transaccion.getEstablecimiento());
+            fraudeRequest.setCodigoUnico(transaccion.getCodTransaccion());
+            fraudeRequest.setTipoTransaccion("COMPRA");
 
             ValidacionFraudeResponseDTO fraudeResponse = validaFraudeClient.validarTransaccion(fraudeRequest);
             

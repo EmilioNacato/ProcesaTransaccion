@@ -1,6 +1,7 @@
 package com.banquito.paymentprocessor.procesatransaccion.banquito.config;
 
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Transaccion;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.dto.TransaccionTemporalDTO;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -17,6 +18,15 @@ public class RedisConfig {
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(new Jackson2JsonRedisSerializer<>(Transaccion.class));
+        return template;
+    }
+    
+    @Bean
+    public RedisTemplate<String, TransaccionTemporalDTO> transaccionTemporalRedisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, TransaccionTemporalDTO> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(new Jackson2JsonRedisSerializer<>(TransaccionTemporalDTO.class));
         return template;
     }
 } 
