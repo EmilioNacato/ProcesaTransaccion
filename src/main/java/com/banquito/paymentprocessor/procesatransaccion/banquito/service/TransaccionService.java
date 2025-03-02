@@ -357,24 +357,13 @@ public class TransaccionService {
                 // Continuamos el proceso aunque falle el registro del historial
             }
             
-            // Si es un estado de error o rechazo, ELIMINAR la transacción de Redis
-            if (ESTADO_ERROR.equals(estado) || ESTADO_RECHAZADA.equals(estado) || ESTADO_FRAUDE.equals(estado)) {
-                try {
-                    redisService.deleteTransaccion(transaccion.getId());
-                    redisService.deleteTransaccionByCodigo(transaccion.getCodTransaccion());
-                    log.info("Transacción con ID {} y código {} eliminada de Redis por estado: {}", 
-                             transaccion.getId(), transaccion.getCodTransaccion(), estado);
-                } catch (Exception e) {
-                    log.error("Error al eliminar transacción de Redis: {}", e.getMessage(), e);
-                }
-            } else {
-                // Actualizar en Redis sólo si NO es estado de error y si la actualización en PostgreSQL fue exitosa
-                try {
-                    redisService.updateTransaccion(transaccion);
-                    log.info("Transacción actualizada en Redis: {}", transaccion.getCodTransaccion());
-                } catch (Exception e) {
-                    log.error("Error al actualizar transacción en Redis: {}", e.getMessage(), e);
-                }
+            // MODIFICADO: Actualizar en Redis para TODOS los estados, incluyendo estados de error
+            // Esto mantiene las transacciones con error en Redis para análisis de fraude
+            try {
+                redisService.updateTransaccion(transaccion);
+                log.info("Transacción actualizada en Redis con estado {}: {}", estado, transaccion.getCodTransaccion());
+            } catch (Exception e) {
+                log.error("Error al actualizar transacción en Redis: {}", e.getMessage(), e);
             }
             
             log.info("Estado de transacción actualizado a: {} - {}", estado, mensaje);
