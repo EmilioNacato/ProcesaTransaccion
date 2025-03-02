@@ -40,6 +40,12 @@ public class Transaccion {
     private String codTransaccion;
     
     @NotNull
+    @Size(max = 64)
+    @Column(name = "CODIGO_UNICO", length = 64, nullable = false)
+    @Schema(description = "Código único para identificar la transacción", example = "TRANS20240301123456")
+    private String codigoUnico;
+    
+    @NotNull
     @Size(min = 16, max = 16)
     @Pattern(regexp = "^[0-9]{16}$", message = "El número de tarjeta debe contener 16 dígitos")
     @Column(name = "NUMERO_TARJETA", length = 16, nullable = false)
@@ -54,26 +60,25 @@ public class Transaccion {
     
     @NotNull
     @Pattern(regexp = "^(0[1-9]|1[0-2])/([0-9]{2})$", message = "Formato de fecha inválido (MM/YY)")
-    @Column(name = "FECHA_CADUCIDAD", length = 5, nullable = false)
+    @Column(name = "FECHA_CADUCIDAD_TARJETA", length = 5, nullable = false)
     @Schema(description = "Fecha de caducidad de la tarjeta", example = "12/25")
     private String fechaCaducidad;
     
     @NotNull
     @DecimalMin(value = "0.01", message = "El monto debe ser mayor a 0")
-    @Column(name = "MONTO", precision = 18, scale = 2, nullable = false)
+    @Column(name = "MONTO", precision = 20, scale = 2, nullable = false)
     @Schema(description = "Monto de la transacción", example = "100.50")
     private BigDecimal monto;
     
-    @NotNull
-    @Size(max = 100)
-    @Column(name = "ESTABLECIMIENTO", length = 100, nullable = false)
-    @Schema(description = "Nombre del establecimiento", example = "Supermercado XYZ")
-    private String establecimiento;
+    @Size(max = 3)
+    @Column(name = "CODIGO_MONEDA", length = 3)
+    @Schema(description = "Código de moneda", example = "USD")
+    private String codigoMoneda;
     
-    @NotNull
-    @Column(name = "FECHA_TRANSACCION", nullable = false)
-    @Schema(description = "Fecha y hora de la transacción", example = "2024-02-26T10:30:00")
-    private LocalDateTime fechaTransaccion;
+    @Size(max = 4)
+    @Column(name = "MARCA", length = 4)
+    @Schema(description = "Marca de la tarjeta", example = "VISA")
+    private String marca;
     
     @NotNull
     @Size(max = 3)
@@ -81,10 +86,45 @@ public class Transaccion {
     @Schema(description = "Estado de la transacción", example = "PEN")
     private String estado;
     
+    @NotNull
+    @Column(name = "FECHA_CREACION", nullable = false)
+    @Schema(description = "Fecha y hora de la transacción", example = "2024-02-26T10:30:00")
+    private LocalDateTime fechaTransaccion;
+    
+    @Size(max = 50)
+    @Column(name = "REFERENCIA", length = 50)
+    @Schema(description = "Referencia de la transacción", example = "Compra en línea")
+    private String referencia;
+    
+    @Size(max = 2)
+    @Column(name = "PAIS", length = 2)
+    @Schema(description = "País de origen de la transacción", example = "EC")
+    private String pais;
+    
+    @Size(max = 3)
+    @Column(name = "TIPO", length = 3)
+    @Schema(description = "Tipo de transacción", example = "COM")
+    private String tipo;
+    
     @Size(max = 11)
-    @Column(name = "SWIFT_BANCO", length = 11)
-    @Schema(description = "Código SWIFT del banco", example = "BANKEC21XXX")
-    private String swiftBanco;
+    @Column(name = "SWIFT_BANCO_COMERCIO", length = 11)
+    @Schema(description = "Código SWIFT del banco del comercio", example = "BANKECXXXX")
+    private String swiftBancoComercio;
+    
+    @Size(max = 28)
+    @Column(name = "CUENTA_IBAN_COMERCIO", length = 28)
+    @Schema(description = "Cuenta IBAN del comercio", example = "EC1234567890123456789012")
+    private String cuentaIbanComercio;
+    
+    @Size(max = 11)
+    @Column(name = "SWIFT_BANCO_TARJETA", length = 11)
+    @Schema(description = "Código SWIFT del banco emisor de la tarjeta", example = "BANKUS33XXX")
+    private String swiftBancoTarjeta;
+    
+    @Size(max = 1000)
+    @Column(name = "TRANSACCION_ENCRIPTADA", length = 1000)
+    @Schema(description = "Datos encriptados de la transacción")
+    private String transaccionEncriptada;
     
     public Transaccion(String codTransaccion) {
         this.codTransaccion = codTransaccion;

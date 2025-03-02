@@ -21,4 +21,13 @@ public class ValidacionMarcaRequest {
     
     @Schema(description = "Código único de la transacción", example = "TRX1234567")
     private String codigoTransaccion;
+    
+    @Schema(description = "Marca de la tarjeta", example = "VISA")
+    private String marca;
+    
+    @Schema(description = "Código de seguridad de la tarjeta", example = "123")
+    private String cvv;
+    
+    @Schema(description = "Fecha de caducidad de la tarjeta en formato MM/YY", example = "12/25")
+    private String fechaCaducidad;
 } 

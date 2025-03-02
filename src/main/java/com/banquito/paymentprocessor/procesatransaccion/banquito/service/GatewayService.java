@@ -1,39 +1,69 @@
 package com.banquito.paymentprocessor.procesatransaccion.banquito.service;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.NotFoundException;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Gateway;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.GatewayRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class GatewayService {
     
     private final GatewayRepository gatewayRepository;
 
     @Transactional(readOnly = true)
     public List<Gateway> findAll() {
+        log.debug("Buscando todos los gateways");
         return this.gatewayRepository.findAll();
     }
 
     @Transactional(readOnly = true)
-    public Optional<Gateway> findById(String codGateway) {
-        return this.gatewayRepository.findById(codGateway);
+    public Gateway findByCodigo(String codGateway) {
+        log.debug("Buscando gateway con código: {}", codGateway);
+        return this.gatewayRepository.findById(codGateway)
+                .orElseThrow(() -> new NotFoundException("Gateway no encontrado con código: " + codGateway));
     }
-
+    
     @Transactional
-    public Gateway save(Gateway gateway) {
+    public Gateway create(Gateway gateway) {
+        log.debug("Creando nuevo gateway: {}", gateway);
+        
+        // Verificar si ya existe un gateway con el mismo código
+        if (this.gatewayRepository.existsById(gateway.getCodGateway())) {
+            throw new IllegalArgumentException("Ya existe un gateway con el código: " + gateway.getCodGateway());
+        }
+        
         return this.gatewayRepository.save(gateway);
     }
-
+    
     @Transactional
-    public void deleteById(String codGateway) {
-        this.gatewayRepository.deleteById(codGateway);
+    public Gateway update(String codGateway, Gateway gateway) {
+        log.debug("Actualizando gateway con código: {}", codGateway);
+        
+        // Verificar que el gateway exista
+        Gateway existingGateway = this.findByCodigo(codGateway);
+        
+        // Actualizar solo los campos permitidos
+        existingGateway.setNombre(gateway.getNombre());
+        
+        return this.gatewayRepository.save(existingGateway);
+    }
+    
+    @Transactional
+    public void delete(String codGateway) {
+        log.debug("Eliminando gateway con código: {}", codGateway);
+        
+        // Verificar que el gateway exista
+        Gateway gateway = this.findByCodigo(codGateway);
+        
+        this.gatewayRepository.delete(gateway);
     }
 } 

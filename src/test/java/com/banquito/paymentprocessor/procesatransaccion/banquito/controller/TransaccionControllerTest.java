@@ -49,10 +49,9 @@ public class TransaccionControllerTest {
         transaccion.setCvv("123");
         transaccion.setFechaCaducidad("12/25");
         transaccion.setMonto(new BigDecimal("100.00"));
-        transaccion.setEstablecimiento("Comercio Test");
         transaccion.setFechaTransaccion(LocalDateTime.now());
         transaccion.setEstado("APR");
-        transaccion.setSwiftBanco("BANKEC21XXX");
+        transaccion.setSwiftBancoTarjeta("BANKEC21XXX");
 
         Transaccion transaccion2 = new Transaccion();
         transaccion2.setId(2L);
@@ -75,21 +74,22 @@ public class TransaccionControllerTest {
     }
 
     @Test
-    void obtenerTransaccion_existente() throws Exception {
-        when(transaccionService.obtenerTransaccion(1L)).thenReturn(transaccion);
+    void obtenerTransaccionPorCodigo_Existente() throws Exception {
+        when(transaccionService.obtenerTransaccionPorCodigo("TRX1234567")).thenReturn(transaccion);
 
-        mockMvc.perform(get("/api/v1/transacciones/1"))
+        mockMvc.perform(get("/api/v1/transacciones/TRX1234567")
+                .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(1)))
-                .andExpect(jsonPath("$.codTransaccion", is("TRX1234567")))
-                .andExpect(jsonPath("$.estado", is("APR")));
+                .andExpect(jsonPath("$.codTransaccion").value("TRX1234567"));
     }
 
     @Test
-    void obtenerTransaccion_noExistente() throws Exception {
-        when(transaccionService.obtenerTransaccion(99L)).thenThrow(new NotFoundException("Transacción no encontrada"));
+    void obtenerTransaccionPorCodigo_NoExistente() throws Exception {
+        when(transaccionService.obtenerTransaccionPorCodigo(anyString()))
+                .thenThrow(new NotFoundException("Transacción no encontrada"));
 
-        mockMvc.perform(get("/api/v1/transacciones/99"))
+        mockMvc.perform(get("/api/v1/transacciones/NOEXISTE")
+                .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound());
     }
 
@@ -116,7 +116,7 @@ public class TransaccionControllerTest {
     }
 
     @Test
-    void procesarTransaccion_exitosa() throws Exception {
+    void procesarTransaccion_Exitoso() throws Exception {
         when(transaccionService.procesarTransaccion(any(Transaccion.class))).thenReturn(transaccion);
 
         mockMvc.perform(post("/api/v1/transacciones")
@@ -127,9 +127,9 @@ public class TransaccionControllerTest {
     }
 
     @Test
-    void procesarTransaccion_rechazada() throws Exception {
+    void procesarTransaccion_Rechazada() throws Exception {
         when(transaccionService.procesarTransaccion(any(Transaccion.class)))
-                .thenThrow(new TransaccionRechazadaException("Fraude detectado"));
+                .thenThrow(new TransaccionRechazadaException("Tarjeta rechazada: Fondos insuficientes"));
 
         mockMvc.perform(post("/api/v1/transacciones")
                 .contentType(MediaType.APPLICATION_JSON)

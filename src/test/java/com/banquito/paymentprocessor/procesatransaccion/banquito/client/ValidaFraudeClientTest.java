@@ -13,8 +13,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionFraudeRequestDTO;
-import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionFraudeResponseDTO;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionFraudeRequest;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.ValidacionFraudeResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 
@@ -29,7 +29,7 @@ public class ValidaFraudeClientTest {
     static WireMockExtension wireMockServer = WireMockExtension.newInstance().build();
 
     @Autowired
-    private ValidaFraudeClient validaFraudeClient;
+    private FraudeClient fraudeClient;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -45,10 +45,10 @@ public class ValidaFraudeClientTest {
 
     @Test
     public void validarTransaccion_sinFraude() throws Exception {
-        ValidacionFraudeResponseDTO responseDTO = new ValidacionFraudeResponseDTO();
-        responseDTO.setEsFraude(false);
+        ValidacionFraudeResponse responseDTO = new ValidacionFraudeResponse();
+        responseDTO.setTransaccionValida(true);
         responseDTO.setMensaje("No se detectó fraude");
-        responseDTO.setNivelRiesgo("BAJO");
+        responseDTO.setCodigoRespuesta("00");
         
         wireMockServer.stubFor(post(urlEqualTo("/api/v1/fraude/validar"))
                 .willReturn(aResponse()
@@ -56,28 +56,26 @@ public class ValidaFraudeClientTest {
                         .withHeader("Content-Type", "application/json")
                         .withBody(objectMapper.writeValueAsString(responseDTO))));
 
-        ValidacionFraudeRequestDTO requestDTO = new ValidacionFraudeRequestDTO();
+        ValidacionFraudeRequest requestDTO = new ValidacionFraudeRequest();
         requestDTO.setNumeroTarjeta("4111111111111111");
         requestDTO.setMonto(new BigDecimal("100.00"));
-        requestDTO.setCodigoComercio("COM001");
-        requestDTO.setCodigoUnico("TRX1234567");
-        requestDTO.setTipoTransaccion("COMPRA");
+        requestDTO.setCodTransaccion("TRX1234567");
+        requestDTO.setSwiftBanco("BANKEC21");
 
-        ValidacionFraudeResponseDTO resultado = validaFraudeClient.validarTransaccion(requestDTO);
+        ValidacionFraudeResponse resultado = fraudeClient.validarTransaccion(requestDTO);
 
         assertNotNull(resultado);
-        assertFalse(resultado.isEsFraude());
-        assertEquals("BAJO", resultado.getNivelRiesgo());
+        assertTrue(resultado.getTransaccionValida());
         assertEquals("No se detectó fraude", resultado.getMensaje());
+        assertEquals("00", resultado.getCodigoRespuesta());
     }
 
     @Test
     public void validarTransaccion_conFraude() throws Exception {
-        ValidacionFraudeResponseDTO responseDTO = new ValidacionFraudeResponseDTO();
-        responseDTO.setEsFraude(true);
+        ValidacionFraudeResponse responseDTO = new ValidacionFraudeResponse();
+        responseDTO.setTransaccionValida(false);
         responseDTO.setMensaje("Posible fraude detectado");
-        responseDTO.setNivelRiesgo("ALTO");
-        responseDTO.setCodigoRegla("FRAUDE-001");
+        responseDTO.setCodigoRespuesta("05");
         
         wireMockServer.stubFor(post(urlEqualTo("/api/v1/fraude/validar"))
                 .willReturn(aResponse()
@@ -85,19 +83,17 @@ public class ValidaFraudeClientTest {
                         .withHeader("Content-Type", "application/json")
                         .withBody(objectMapper.writeValueAsString(responseDTO))));
 
-        ValidacionFraudeRequestDTO requestDTO = new ValidacionFraudeRequestDTO();
+        ValidacionFraudeRequest requestDTO = new ValidacionFraudeRequest();
         requestDTO.setNumeroTarjeta("4111111111111111");
         requestDTO.setMonto(new BigDecimal("10000.00"));
-        requestDTO.setCodigoComercio("COM001");
-        requestDTO.setCodigoUnico("TRX1234567");
-        requestDTO.setTipoTransaccion("COMPRA");
+        requestDTO.setCodTransaccion("TRX1234567");
+        requestDTO.setSwiftBanco("BANKEC21");
 
-        ValidacionFraudeResponseDTO resultado = validaFraudeClient.validarTransaccion(requestDTO);
+        ValidacionFraudeResponse resultado = fraudeClient.validarTransaccion(requestDTO);
 
         assertNotNull(resultado);
-        assertTrue(resultado.isEsFraude());
-        assertEquals("ALTO", resultado.getNivelRiesgo());
+        assertFalse(resultado.getTransaccionValida());
         assertEquals("Posible fraude detectado", resultado.getMensaje());
-        assertEquals("FRAUDE-001", resultado.getCodigoRegla());
+        assertEquals("05", resultado.getCodigoRespuesta());
     }
 } 

@@ -1,11 +1,21 @@
 package com.banquito.paymentprocessor.procesatransaccion.banquito.controller;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import com.banquito.paymentprocessor.procesatransaccion.banquito.controller.dto.TransaccionDTO;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.controller.mapper.TransaccionMapper;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.TransaccionRechazadaException;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Transaccion;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.service.TransaccionService;
+
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,93 +26,115 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/transacciones")
+@RequestMapping("/v1/transacciones")
 @Tag(name = "Transacciones", description = "API para procesar y gestionar transacciones de pago")
 @RequiredArgsConstructor
 public class TransaccionController {
 
     private final TransaccionService service;
-
-    @GetMapping
-    @Operation(
-        summary = "Obtiene todas las transacciones",
-        description = "Retorna una lista de todas las transacciones registradas en el sistema"
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Lista de transacciones obtenida exitosamente"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
-    })
-    public ResponseEntity<List<Transaccion>> obtenerTodasLasTransacciones() {
-        log.debug("Obteniendo todas las transacciones");
-        return ResponseEntity.ok(service.findAll());
-    }
-
-    @GetMapping("/{id}")
-    @Operation(
-        summary = "Obtiene una transacción por su ID",
-        description = "Busca y retorna una transacción específica basada en su identificador único"
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Transacción encontrada exitosamente"),
-        @ApiResponse(responseCode = "404", description = "Transacción no encontrada"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
-    })
-    public ResponseEntity<Transaccion> obtenerTransaccion(
-            @Parameter(description = "ID de la transacción", required = true) 
-            @PathVariable Long id) {
-        log.debug("Obteniendo transacción con id: {}", id);
-        return ResponseEntity.ok(service.obtenerTransaccion(id));
-    }
-
-    @GetMapping("/tarjeta/{numeroTarjeta}")
-    @Operation(
-        summary = "Obtiene transacciones por número de tarjeta",
-        description = "Retorna todas las transacciones asociadas a un número de tarjeta específico"
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Transacciones encontradas exitosamente"),
-        @ApiResponse(responseCode = "404", description = "No se encontraron transacciones para la tarjeta"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
-    })
-    public ResponseEntity<List<Transaccion>> obtenerTransaccionesPorTarjeta(
-            @Parameter(description = "Número de tarjeta", required = true) 
-            @PathVariable String numeroTarjeta) {
-        log.debug("Obteniendo transacciones para la tarjeta: {}", numeroTarjeta);
-        return ResponseEntity.ok(service.findByNumeroTarjeta(numeroTarjeta));
-    }
-
-    @GetMapping("/estado/{estado}")
-    @Operation(
-        summary = "Obtiene transacciones por estado",
-        description = "Retorna todas las transacciones que se encuentran en un estado específico"
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Transacciones encontradas exitosamente"),
-        @ApiResponse(responseCode = "400", description = "Estado de transacción inválido"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
-    })
-    public ResponseEntity<List<Transaccion>> obtenerTransaccionesPorEstado(
-            @Parameter(description = "Estado de la transacción (PENDIENTE, APROBADA, RECHAZADA)", required = true) 
-            @PathVariable String estado) {
-        log.debug("Obteniendo transacciones con estado: {}", estado);
-        return ResponseEntity.ok(service.findByEstado(estado));
-    }
+    private final TransaccionMapper mapper;
 
     @PostMapping
     @Operation(
         summary = "Procesa una nueva transacción",
-        description = "Crea y procesa una nueva transacción de pago en el sistema"
+        description = "Recibe y procesa una nueva transacción de pago enviada desde el gateway. " +
+                      "Valida la transacción contra servicios de fraude y marca, actualiza su estado " +
+                      "y registra el historial correspondiente."
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Transacción procesada exitosamente"),
-        @ApiResponse(responseCode = "400", description = "Datos de la transacción inválidos"),
-        @ApiResponse(responseCode = "422", description = "Error en el procesamiento de la transacción"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+        @ApiResponse(
+            responseCode = "201", 
+            description = "Transacción procesada exitosamente",
+            content = @Content(schema = @Schema(implementation = TransaccionDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "400", 
+            description = "Datos de la transacción inválidos"
+        ),
+        @ApiResponse(
+            responseCode = "422", 
+            description = "Error en el procesamiento de la transacción (fraude, tarjeta inválida, etc.)"
+        ),
+        @ApiResponse(
+            responseCode = "500", 
+            description = "Error interno del servidor"
+        )
     })
-    public ResponseEntity<Transaccion> procesarTransaccion(
-            @Parameter(description = "Datos de la transacción", required = true)
-            @Valid @RequestBody Transaccion transaccion) {
-        log.info("Procesando nueva transacción: {}", transaccion);
-        return ResponseEntity.ok(service.procesarTransaccion(transaccion));
+    public ResponseEntity<TransaccionDTO> procesarTransaccion(
+            @Parameter(description = "Datos de la transacción a procesar", required = true)
+            @Valid @RequestBody TransaccionDTO transaccionDTO) {
+        log.info("Procesando nueva transacción desde gateway: {}", transaccionDTO);
+        try {
+            Transaccion transaccion = mapper.toEntity(transaccionDTO);
+            Transaccion resultado = service.procesarTransaccion(transaccion);
+            return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toDTO(resultado));
+        } catch (TransaccionRechazadaException e) {
+            log.warn("Transacción rechazada: {}", e.getMessage());
+            throw e;
+        }
+    }
+
+    @GetMapping("/{codTransaccion}")
+    @Operation(
+        summary = "Obtiene una transacción por su código",
+        description = "Busca y retorna una transacción específica basada en su código único de transacción. " +
+                      "Primero verifica en Redis (transacciones recientes) y luego en la base de datos PostgreSQL."
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Transacción encontrada exitosamente",
+            content = @Content(schema = @Schema(implementation = TransaccionDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "404", 
+            description = "Transacción no encontrada"
+        ),
+        @ApiResponse(
+            responseCode = "500", 
+            description = "Error interno del servidor"
+        )
+    })
+    public ResponseEntity<TransaccionDTO> obtenerTransaccionPorCodigo(
+            @Parameter(description = "Código único de la transacción", required = true, example = "TRX1234567") 
+            @PathVariable String codTransaccion) {
+        log.debug("Obteniendo transacción con código: {}", codTransaccion);
+        Transaccion transaccion = service.obtenerTransaccionPorCodigo(codTransaccion);
+        return ResponseEntity.ok(mapper.toDTO(transaccion));
+    }
+
+    @GetMapping("/recientes")
+    @Operation(
+        summary = "Obtiene transacciones recientes",
+        description = "Retorna las transacciones procesadas en un intervalo de tiempo especificado. " +
+                      "Por defecto, retorna las transacciones de la última hora."
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Transacciones obtenidas exitosamente"
+        ),
+        @ApiResponse(
+            responseCode = "500", 
+            description = "Error interno del servidor"
+        )
+    })
+    public ResponseEntity<List<TransaccionDTO>> obtenerTransaccionesRecientes(
+            @Parameter(description = "Fecha de inicio (formato: yyyy-MM-dd'T'HH:mm:ss)", example = "2024-02-26T10:00:00") 
+            @RequestParam(required = false) 
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime desde,
+            
+            @Parameter(description = "Fecha de fin (formato: yyyy-MM-dd'T'HH:mm:ss)", example = "2024-02-26T11:00:00") 
+            @RequestParam(required = false) 
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime hasta) {
+        
+        // Si no se especifican fechas, buscar transacciones de la última hora
+        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime fechaDesde = (desde != null) ? desde : ahora.minusHours(1);
+        LocalDateTime fechaHasta = (hasta != null) ? hasta : ahora;
+        
+        log.debug("Obteniendo transacciones desde {} hasta {}", fechaDesde, fechaHasta);
+        List<Transaccion> transacciones = service.buscarTransaccionesPorFecha(fechaDesde, fechaHasta);
+        return ResponseEntity.ok(mapper.toDTOList(transacciones));
     }
 } 

@@ -7,7 +7,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import com.banquito.paymentprocessor.procesatransaccion.banquito.controller.dto.HistorialEstadoTransaccionDTO;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.controller.mapper.HistorialEstadoTransaccionMapper;
@@ -16,100 +18,131 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.service.Histori
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/v1/historiales")
-@Tag(name = "Historial de Estados", description = "API para gestionar el historial de estados de las transacciones")
+@RequestMapping("/v1/historial")
+@Tag(name = "Historial", description = "API para consultar el historial de estados de las transacciones")
 @Slf4j
+@RequiredArgsConstructor
 public class HistorialEstadoTransaccionController {
 
     private final HistorialEstadoTransaccionService service;
     private final HistorialEstadoTransaccionMapper mapper;
 
-    public HistorialEstadoTransaccionController(HistorialEstadoTransaccionService service, 
-            HistorialEstadoTransaccionMapper mapper) {
-        this.service = service;
-        this.mapper = mapper;
-    }
-
-    @GetMapping
-    @Operation(
-        summary = "Obtiene todos los historiales de estado",
-        description = "Retorna una lista de todos los historiales de estado de transacciones registrados"
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Lista de historiales obtenida exitosamente"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
-    })
-    public ResponseEntity<List<HistorialEstadoTransaccionDTO>> obtenerTodosLosHistoriales() {
-        log.debug("Obteniendo todos los historiales de estado");
-        List<HistorialEstadoTransaccionDTO> historiales = this.service.findAll().stream()
-                .map(mapper::toDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(historiales);
-    }
-
-    @GetMapping("/{id}")
-    @Operation(
-        summary = "Obtiene un historial por su ID",
-        description = "Busca y retorna un historial de estado específico basado en su identificador único"
-    )
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Historial encontrado exitosamente"),
-        @ApiResponse(responseCode = "404", description = "Historial no encontrado"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
-    })
-    public ResponseEntity<HistorialEstadoTransaccionDTO> obtenerHistorialPorId(
-            @Parameter(description = "ID del historial", required = true)
-            @PathVariable String id) {
-        log.debug("Obteniendo historial con id: {}", id);
-        return ResponseEntity.ok(mapper.toDTO(this.service.findById(Long.valueOf(id))));
-    }
-
     @GetMapping("/transaccion/{codTransaccion}")
     @Operation(
-        summary = "Obtiene historiales por código de transacción",
-        description = "Retorna todos los historiales de estado asociados a una transacción específica"
+        summary = "Consulta historial de una transacción",
+        description = "Obtiene el historial completo de estados por los que ha pasado una transacción específica, " +
+                      "ordenados desde el más reciente al más antiguo."
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Historiales encontrados exitosamente"),
-        @ApiResponse(responseCode = "404", description = "No se encontraron historiales para la transacción"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Historial obtenido exitosamente",
+            content = @Content(schema = @Schema(implementation = HistorialEstadoTransaccionDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "404", 
+            description = "Transacción no encontrada"
+        ),
+        @ApiResponse(
+            responseCode = "500", 
+            description = "Error interno del servidor"
+        )
     })
-    public ResponseEntity<List<HistorialEstadoTransaccionDTO>> obtenerHistorialesPorTransaccion(
-            @Parameter(description = "Código de la transacción", required = true)
+    public ResponseEntity<List<HistorialEstadoTransaccionDTO>> obtenerHistorialTransaccion(
+            @Parameter(description = "Código único de la transacción", required = true, example = "TRX1234567") 
             @PathVariable String codTransaccion) {
-        log.debug("Obteniendo historiales para la transacción: {}", codTransaccion);
-        List<HistorialEstadoTransaccionDTO> historiales = this.service.findByCodTransaccion(codTransaccion).stream()
+        log.debug("Consultando historial de la transacción: {}", codTransaccion);
+        List<HistorialEstadoTransaccionDTO> historiales = service.findByCodTransaccion(codTransaccion).stream()
                 .map(mapper::toDTO)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(historiales);
     }
 
-    @GetMapping("/estado/{estado}")
+    @GetMapping("/estado")
     @Operation(
-        summary = "Obtiene historiales por estado",
-        description = "Retorna todos los historiales que corresponden a un estado específico"
+        summary = "Consulta transacciones por estado",
+        description = "Obtiene el historial de todas las transacciones que se encuentran o han pasado por un estado específico, " +
+                      "opcionalmente limitando los resultados con un parámetro de cantidad."
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Historiales encontrados exitosamente"),
-        @ApiResponse(responseCode = "400", description = "Estado inválido"),
-        @ApiResponse(responseCode = "500", description = "Error interno del servidor")
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Consulta realizada exitosamente"
+        ),
+        @ApiResponse(
+            responseCode = "400", 
+            description = "Parámetro de estado inválido"
+        ),
+        @ApiResponse(
+            responseCode = "500", 
+            description = "Error interno del servidor"
+        )
     })
-    public ResponseEntity<List<HistorialEstadoTransaccionDTO>> obtenerHistorialesPorEstado(
-            @Parameter(description = "Estado de la transacción", required = true)
-            @PathVariable String estado) {
-        log.debug("Obteniendo historiales con estado: {}", estado);
-        List<HistorialEstadoTransaccionDTO> historiales = this.service.findByEstado(estado).stream()
+    public ResponseEntity<List<HistorialEstadoTransaccionDTO>> buscarPorEstado(
+            @Parameter(description = "Estado a consultar (PENDIENTE, VALIDADA, APROBADA, RECHAZADA, FRAUDE, ERROR)", 
+                      required = true, example = "FRAUDE") 
+            @RequestParam String estado,
+            
+            @Parameter(description = "Cantidad máxima de registros a retornar (opcional)", example = "10")
+            @RequestParam(required = false, defaultValue = "50") Integer limite) {
+        log.debug("Buscando historial de transacciones con estado: {}, límite: {}", estado, limite);
+        
+        List<HistorialEstadoTransaccionDTO> historiales = service.findByEstado(estado).stream()
+                .limit(limite)
                 .map(mapper::toDTO)
                 .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(historiales);
+    }
+
+    @GetMapping("/recientes")
+    @Operation(
+        summary = "Consulta historial de transacciones por intervalo de tiempo",
+        description = "Obtiene el historial de estados de transacciones en un intervalo de tiempo específico. " +
+                      "Por defecto, retorna el historial de la última hora."
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Consulta realizada exitosamente"
+        ),
+        @ApiResponse(
+            responseCode = "500", 
+            description = "Error interno del servidor"
+        )
+    })
+    public ResponseEntity<List<HistorialEstadoTransaccionDTO>> buscarPorIntervaloTiempo(
+            @Parameter(description = "Fecha de inicio (formato: yyyy-MM-dd'T'HH:mm:ss)", example = "2024-02-26T10:00:00") 
+            @RequestParam(required = false) 
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime desde,
+            
+            @Parameter(description = "Fecha de fin (formato: yyyy-MM-dd'T'HH:mm:ss)", example = "2024-02-26T11:00:00") 
+            @RequestParam(required = false) 
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime hasta) {
+        
+        // Si no se especifican fechas, buscar historial de la última hora
+        LocalDateTime ahora = LocalDateTime.now();
+        LocalDateTime fechaDesde = (desde != null) ? desde : ahora.minusHours(1);
+        LocalDateTime fechaHasta = (hasta != null) ? hasta : ahora;
+        
+        log.debug("Buscando historial desde {} hasta {}", fechaDesde, fechaHasta);
+        List<HistorialEstadoTransaccionDTO> historiales = service.findByFechaEstadoCambioBetween(fechaDesde, fechaHasta).stream()
+                .map(mapper::toDTO)
+                .collect(Collectors.toList());
+        
         return ResponseEntity.ok(historiales);
     }
 

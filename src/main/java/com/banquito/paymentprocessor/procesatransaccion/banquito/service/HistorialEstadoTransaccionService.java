@@ -1,57 +1,77 @@
 package com.banquito.paymentprocessor.procesatransaccion.banquito.service;
 
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import com.banquito.paymentprocessor.procesatransaccion.banquito.model.HistorialEstadoTransaccion;
-import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.HistorialEstadoTransaccionRepository;
-import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.NotFoundException;
-
-import lombok.extern.slf4j.Slf4j;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.NotFoundException;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.model.HistorialEstadoTransaccion;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.repository.HistorialEstadoTransaccionRepository;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class HistorialEstadoTransaccionService {
 
-    private final HistorialEstadoTransaccionRepository historialRepository;
+    private final HistorialEstadoTransaccionRepository repository;
 
-    public HistorialEstadoTransaccionService(HistorialEstadoTransaccionRepository historialRepository) {
-        this.historialRepository = historialRepository;
-    }
-
+    @Transactional(readOnly = true)
     public List<HistorialEstadoTransaccion> findAll() {
-        return this.historialRepository.findAll();
+        return this.repository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public HistorialEstadoTransaccion findById(Long id) {
-        return this.historialRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException(id.toString(), "HistorialEstadoTransaccion"));
+        return this.repository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Historial no encontrado con id: " + id));
     }
 
+    @Transactional(readOnly = true)
     public List<HistorialEstadoTransaccion> findByCodTransaccion(String codTransaccion) {
-        return this.historialRepository.findByCodTransaccion(codTransaccion);
+        log.info("Buscando historial para la transacción: {}", codTransaccion);
+        return this.repository.findByCodTransaccionOrderByFechaEstadoCambioDesc(codTransaccion);
     }
 
+    @Transactional(readOnly = true)
     public List<HistorialEstadoTransaccion> findByEstado(String estado) {
-        return this.historialRepository.findByEstado(estado);
+        log.info("Buscando historial para el estado: {}", estado);
+        return this.repository.findByEstadoOrderByFechaEstadoCambioDesc(estado);
+    }
+    
+    @Transactional(readOnly = true)
+    public List<HistorialEstadoTransaccion> findByFechaEstadoCambioBetween(LocalDateTime desde, LocalDateTime hasta) {
+        log.info("Buscando historial entre {} y {}", desde, hasta);
+        return this.repository.findByFechaEstadoCambioBetweenOrderByFechaEstadoCambioDesc(desde, hasta);
     }
 
     @Transactional
     public HistorialEstadoTransaccion create(HistorialEstadoTransaccion historial) {
-        log.debug("Creando nuevo historial de estado");
-        historial.setCodHistorialEstado(UUID.randomUUID().toString().substring(0, 10));
-        historial.setFechaEstadoCambio(LocalDateTime.now());
-        return this.historialRepository.save(historial);
+        log.info("Creando nuevo historial de estado para transacción: {}", historial.getCodTransaccion());
+        
+        // Generamos un código único si no viene especificado
+        if (historial.getCodHistorialEstado() == null || historial.getCodHistorialEstado().isEmpty()) {
+            historial.setCodHistorialEstado(UUID.randomUUID().toString().substring(0, 10));
+        }
+        
+        // Establecemos la fecha actual si no viene especificada
+        if (historial.getFechaEstadoCambio() == null) {
+            historial.setFechaEstadoCambio(LocalDateTime.now());
+        }
+        
+        return this.repository.save(historial);
     }
 
     @Transactional
     public void delete(Long id) {
-        log.debug("Eliminando historial de estado con id: {}", id);
+        log.info("Eliminando historial con id: {}", id);
+        
         HistorialEstadoTransaccion historial = this.findById(id);
-        this.historialRepository.delete(historial);
+        this.repository.delete(historial);
     }
 } 
