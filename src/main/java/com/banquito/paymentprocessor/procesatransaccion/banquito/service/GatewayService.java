@@ -66,4 +66,20 @@ public class GatewayService {
         
         this.gatewayRepository.delete(gateway);
     }
+    
+    /**
+     * Verifica si un código de gateway existe en la base de datos
+     * @param codGateway Código del gateway a verificar
+     * @return true si el gateway existe, false en caso contrario
+     */
+    @Transactional(readOnly = true)
+    public boolean verificarCodigoGateway(String codGateway) {
+        log.debug("Verificando si existe gateway con código: {}", codGateway);
+        if (codGateway == null || codGateway.trim().isEmpty()) {
+            log.warn("Se intentó verificar un código de gateway nulo o vacío");
+            return false;
+        }
+        
+        return this.gatewayRepository.existsById(codGateway);
+    }
 } 

@@ -16,6 +16,8 @@ public interface TransaccionRepository extends JpaRepository<Transaccion, Long> 
     
     Optional<Transaccion> findByCodTransaccion(String codTransaccion);
     
+    List<Transaccion> findByCodigoUnico(String codigoUnico);
+    
     List<Transaccion> findByNumeroTarjeta(String numeroTarjeta);
     
     List<Transaccion> findByEstado(String estado);

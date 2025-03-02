@@ -38,6 +38,7 @@ public class TransaccionService {
     private final FraudeClient fraudeClient;
     private final BancoClient bancoClient;
     private final RedisService redisService;
+    private final GatewayService gatewayService;
     
     // Estados de transacción
     public static final String ESTADO_PENDIENTE = "PEN";
@@ -51,12 +52,65 @@ public class TransaccionService {
     public static final String ESTADO_FRAUDE = "FRA";
 
     public Transaccion procesarTransaccion(Transaccion transaccion) {
-        log.info("Iniciando procesamiento de transacción: {}", transaccion.getCodigoUnico());
+        log.info("Iniciando procesamiento de nueva transacción");
+        
+        // Obtener el codigoGtw para validación
+        String codigoGtw = transaccion.getCodigoGtw();
+        
+        // Verificar si el código del gateway es válido
+        if (codigoGtw == null || codigoGtw.trim().isEmpty()) {
+            log.error("Se recibió una transacción sin código de gateway");
+            throw new TransaccionRechazadaException("Código de gateway no proporcionado");
+        }
+        
+        // Verificar que el gateway exista en nuestra base de datos
+        boolean gatewayValido = gatewayService.verificarCodigoGateway(codigoGtw);
+        if (!gatewayValido) {
+            log.error("Se recibió una transacción con código de gateway inválido: {}", codigoGtw);
+            throw new TransaccionRechazadaException("Código de gateway no válido o no autorizado: " + codigoGtw);
+        }
+        
+        log.info("Gateway validado correctamente: {}", codigoGtw);
+        
+        // Verificar que el código único de transacción no exista previamente
+        if (transaccion.getCodigoUnico() != null && !transaccion.getCodigoUnico().isEmpty()) {
+            // Buscar si ya existe una transacción con ese código único
+            try {
+                List<Transaccion> transaccionesExistentes = transaccionRepository.findByCodigoUnico(transaccion.getCodigoUnico());
+                if (!transaccionesExistentes.isEmpty()) {
+                    log.error("Ya existe una transacción con el código único: {}", transaccion.getCodigoUnico());
+                    throw new TransaccionRechazadaException("Código único de transacción duplicado: " + transaccion.getCodigoUnico());
+                }
+                log.info("Verificación de código único de transacción exitosa: {}", transaccion.getCodigoUnico());
+            } catch (Exception e) {
+                if (!(e instanceof TransaccionRechazadaException)) {
+                    log.error("Error al verificar unicidad del código de transacción: {}", e.getMessage(), e);
+                    throw new RuntimeException("Error al verificar unicidad del código de transacción: " + e.getMessage(), e);
+                } else {
+                    throw e;
+                }
+            }
+        }
+        
+        // Asegurar que la fecha de transacción esté establecida
+        if (transaccion.getFechaTransaccion() == null) {
+            transaccion.setFechaTransaccion(LocalDateTime.now());
+            log.info("Fecha de transacción generada automáticamente: {}", transaccion.getFechaTransaccion());
+        }
+        
+        // Después de validar, ya no necesitamos mantener el codigoGtw
+        // porque es un campo @Transient y no se almacena en la base de datos
+        
+        // Inicializar transacción
+        try {
+            inicializarTransaccion(transaccion);
+            log.info("Transacción inicializada: {}", transaccion.getCodTransaccion());
+        } catch (Exception e) {
+            log.error("Error al inicializar transacción: {}", e.getMessage(), e);
+            throw new RuntimeException("Error al inicializar transacción: " + e.getMessage(), e);
+        }
         
         try {
-            // Paso 1: Inicializar y guardar la transacción
-            inicializarTransaccion(transaccion);
-            
             // Paso 2: Validar fraude
             try {
                 validarFraude(transaccion);

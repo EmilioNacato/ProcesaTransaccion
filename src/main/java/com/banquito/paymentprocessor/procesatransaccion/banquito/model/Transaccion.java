@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Pattern;
+import jakarta.persistence.Transient;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -44,6 +45,12 @@ public class Transaccion {
     @Column(name = "CODIGO_UNICO", length = 64, nullable = false)
     @Schema(description = "Código único para identificar la transacción", example = "TRANS20240301123456")
     private String codigoUnico;
+    
+    @NotNull
+    @Size(max = 10)
+    @Transient
+    @Schema(description = "Código del gateway que envía la transacción (solo para validación)", example = "PAYPAL")
+    private String codigoGtw;
     
     @NotNull
     @Size(min = 16, max = 16)
