@@ -83,4 +83,10 @@ public class TransaccionDTO {
     
     @Schema(description = "Transacción encriptada", example = "daaddaasd")
     private String transaccion_encriptada;
+    
+    @Schema(description = "Indica si la transacción es diferida", example = "true")
+    private Boolean diferido;
+    
+    @Schema(description = "Número de cuotas para pago diferido (puede ser null o 0)", example = "3")
+    private Integer cuotas;
 } 

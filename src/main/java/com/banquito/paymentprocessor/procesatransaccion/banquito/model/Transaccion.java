@@ -136,4 +136,12 @@ public class Transaccion {
     public Transaccion(String codTransaccion) {
         this.codTransaccion = codTransaccion;
     }
+    
+    public void setCodigoSeguridad(Integer codigoSeguridad) {
+        this.cvv = String.valueOf(codigoSeguridad);
+    }
+    
+    public Integer getCodigoSeguridad() {
+        return Integer.valueOf(this.cvv);
+    }
 } 

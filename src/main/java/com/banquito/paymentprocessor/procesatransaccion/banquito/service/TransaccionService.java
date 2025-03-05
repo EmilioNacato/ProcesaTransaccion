@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 @Slf4j
 @Service
@@ -111,7 +112,21 @@ public class TransaccionService {
         }
         
         try {
-            // Paso 2: Validar fraude
+
+            // Paso 2: Validar tarjeta con marca
+            try {
+                validarMarca(transaccion);
+            } catch (TransaccionRechazadaException e) {
+                log.warn("Transacción rechazada en validación de marca: {}", e.getMessage());
+                throw e;
+            } catch (Exception e) {
+                log.error("Error en validación con marca: {}", e.getMessage(), e);
+                actualizarEstadoTransaccion(transaccion, ESTADO_ERROR, 
+                        "Error en validación con marca: " + e.getMessage());
+                throw new TransaccionRechazadaException("Error en validación con marca: " + e.getMessage());
+            }
+            
+            // Paso 3: Validar fraude
             try {
                 validarFraude(transaccion);
             } catch (TransaccionRechazadaException e) {
@@ -124,18 +139,6 @@ public class TransaccionService {
                 throw new TransaccionRechazadaException("Error en validación de fraude: " + e.getMessage());
             }
             
-            // Paso 3: Validar tarjeta con marca
-            try {
-                validarMarca(transaccion);
-            } catch (TransaccionRechazadaException e) {
-                log.warn("Transacción rechazada en validación de marca: {}", e.getMessage());
-                throw e;
-            } catch (Exception e) {
-                log.error("Error en validación con marca: {}", e.getMessage(), e);
-                actualizarEstadoTransaccion(transaccion, ESTADO_ERROR, 
-                        "Error en validación con marca: " + e.getMessage());
-                throw new TransaccionRechazadaException("Error en validación con marca: " + e.getMessage());
-            }
             
             // Paso 4: Procesar débito a la tarjeta
             try {
@@ -276,27 +279,64 @@ public class TransaccionService {
         actualizarEstadoTransaccion(transaccion, ESTADO_VALIDACION_MARCA, 
                 "Iniciando validación con marca de tarjeta");
         
-        String marcaTarjeta = obtenerMarcaTarjeta(transaccion.getNumeroTarjeta());
-        log.info("Marca de tarjeta identificada: {}", marcaTarjeta);
+        log.info("Datos de transacción para validar: numeroTarjeta={}, cvv=***, fechaCaducidad={}, monto={}, codigoUnico={}",
+            transaccion.getNumeroTarjeta(),
+            // Ocultamos el CVV en los logs por seguridad
+            transaccion.getFechaCaducidad(),
+            transaccion.getMonto(),
+            transaccion.getCodigoUnico());
+        
+        // Validar datos necesarios antes de enviar
+        if (transaccion.getNumeroTarjeta() == null || transaccion.getNumeroTarjeta().trim().isEmpty()) {
+            throw new TransaccionRechazadaException("Número de tarjeta no proporcionado");
+        }
+        
+        if (transaccion.getCvv() == null || transaccion.getCvv().trim().isEmpty()) {
+            throw new TransaccionRechazadaException("Código de seguridad (CVV) no proporcionado");
+        }
+        
+        if (transaccion.getFechaCaducidad() == null || transaccion.getFechaCaducidad().trim().isEmpty()) {
+            throw new TransaccionRechazadaException("Fecha de caducidad no proporcionada");
+        }
+        
+        if (transaccion.getMonto() == null || transaccion.getMonto().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new TransaccionRechazadaException("Monto no válido");
+        }
         
         ValidacionMarcaRequest marcaRequest = new ValidacionMarcaRequest();
         marcaRequest.setNumeroTarjeta(transaccion.getNumeroTarjeta());
-        marcaRequest.setFechaCaducidad(transaccion.getFechaCaducidad());
-        marcaRequest.setCvv(transaccion.getCvv());
+        marcaRequest.setCodigoSeguridad(transaccion.getCvv());
+        marcaRequest.setFechaExpiracion(transaccion.getFechaCaducidad());
         marcaRequest.setMonto(transaccion.getMonto());
-        marcaRequest.setCodigoTransaccion(transaccion.getCodTransaccion());
-        marcaRequest.setMarca(marcaTarjeta);
+        marcaRequest.setCodigoUnicoTransaccion(transaccion.getCodigoUnico());
         
-        ValidacionMarcaResponse marcaResponse = marcaClient.validarTarjeta(marcaRequest);
+        log.debug("Enviando request a marca: numeroTarjeta={}, monto={}, codigoUnico={}",
+            marcaRequest.getNumeroTarjeta(),
+            marcaRequest.getMonto(),
+            marcaRequest.getCodigoUnicoTransaccion());
         
-        if (!marcaResponse.getTarjetaValida()) {
-            log.warn("Tarjeta inválida o rechazada: {}", marcaResponse.getMensaje());
-            actualizarEstadoTransaccion(transaccion, ESTADO_RECHAZADA, marcaResponse.getMensaje());
-            throw new TransaccionRechazadaException("Tarjeta rechazada: " + marcaResponse.getMensaje());
+        try {
+            ValidacionMarcaResponse marcaResponse = marcaClient.validarTarjeta(marcaRequest);
+            
+            if (marcaResponse == null) {
+                log.error("Respuesta de validación de marca es null");
+                throw new TransaccionRechazadaException("Error en comunicación con servicio de marca: Respuesta vacía");
+            }
+            
+            if (!Boolean.TRUE.equals(marcaResponse.getTarjetaValida())) {
+                log.warn("Tarjeta inválida o rechazada: {}", marcaResponse.getMensaje());
+                actualizarEstadoTransaccion(transaccion, ESTADO_RECHAZADA, marcaResponse.getMensaje());
+                throw new TransaccionRechazadaException("Tarjeta rechazada: " + marcaResponse.getMensaje());
+            }
+            
+            transaccion.setSwiftBancoTarjeta(marcaResponse.getSwiftBanco());
+            log.info("Validación de marca exitosa para transacción: {}", transaccion.getCodTransaccion());
+        } catch (Exception e) {
+            log.error("Error en la comunicación con el servicio de marca: {}", e.getMessage(), e);
+            actualizarEstadoTransaccion(transaccion, ESTADO_ERROR, 
+                    "Error en comunicación con servicio de marca: " + e.getMessage());
+            throw new TransaccionRechazadaException("Error en validación con marca: " + e.getMessage());
         }
-        
-        transaccion.setSwiftBancoTarjeta(marcaResponse.getSwiftBanco());
-        log.info("Validación de marca exitosa para transacción: {}", transaccion.getCodTransaccion());
     }
     
     private void procesarDebitoTarjeta(Transaccion transaccion) {

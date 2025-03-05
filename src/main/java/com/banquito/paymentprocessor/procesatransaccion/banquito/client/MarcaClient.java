@@ -10,6 +10,6 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.Vali
 @FeignClient(name = "marca-service", url = "${app.marca-service.url}")
 public interface MarcaClient {
     
-    @PostMapping("/api/v1/validacion")
+    @PostMapping("/dev/api/v1/marca/validar")
     ValidacionMarcaResponse validarTarjeta(@RequestBody ValidacionMarcaRequest request);
 } 
