@@ -62,6 +62,6 @@ jobs:
     - name: Update ECS service
       run: |
         echo "Updating ECS service..."
-        aws ecs update-service --cluster $ECS_CLUSTER --service arn:aws:ecs:us-east-2:851725454079:service/ms-cluster/transaccionSimple-service --force-new-deployment
+        aws ecs update-service --cluster $ECS_CLUSTER --service arn:aws:ecs:us-east-2:851725454079:service/ms-cluster/procesaTransaccion-service --force-new-deployment
         echo "Waiting for service to stabilize..."
         aws ecs wait services-stable --cluster $ECS_CLUSTER --services $ECS_SERVICE 
