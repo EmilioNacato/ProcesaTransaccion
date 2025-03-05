@@ -67,12 +67,14 @@ public class TransaccionServiceTest {
         transaccion.setEstado("PEN");
         
         fraudeResponseValido = new ValidacionFraudeResponse();
-        fraudeResponseValido.setTransaccionValida(true);
+        fraudeResponseValido.setEsFraude(false);
         fraudeResponseValido.setMensaje("Transacción válida");
+        fraudeResponseValido.setCodigoRegla("VALIDA");
         
         fraudeResponseInvalido = new ValidacionFraudeResponse();
-        fraudeResponseInvalido.setTransaccionValida(false);
+        fraudeResponseInvalido.setEsFraude(true);
         fraudeResponseInvalido.setMensaje("Posible fraude detectado");
+        fraudeResponseInvalido.setCodigoRegla("REGLA001");
         
         marcaResponseValida = new ValidacionMarcaResponse();
         marcaResponseValida.setTarjetaValida(true);

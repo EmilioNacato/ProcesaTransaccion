@@ -2,6 +2,8 @@ package com.banquito.paymentprocessor.procesatransaccion.banquito.controller;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +14,7 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.controller.mapp
 import com.banquito.paymentprocessor.procesatransaccion.banquito.exception.TransaccionRechazadaException;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.model.Transaccion;
 import com.banquito.paymentprocessor.procesatransaccion.banquito.service.TransaccionService;
+import com.banquito.paymentprocessor.procesatransaccion.banquito.context.TransaccionContextHolder;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -35,42 +38,94 @@ public class TransaccionController {
     private final TransaccionMapper mapper;
 
     @PostMapping
-    @Operation(
-        summary = "Procesa una nueva transacción",
-        description = "Recibe y procesa una nueva transacción de pago enviada desde el gateway. " +
-                      "Valida la transacción contra servicios de fraude y marca, actualiza su estado " +
-                      "y registra el historial correspondiente."
-    )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "201", 
-            description = "Transacción procesada exitosamente",
-            content = @Content(schema = @Schema(implementation = TransaccionDTO.class))
-        ),
-        @ApiResponse(
-            responseCode = "400", 
-            description = "Datos de la transacción inválidos"
-        ),
-        @ApiResponse(
-            responseCode = "422", 
-            description = "Error en el procesamiento de la transacción (fraude, tarjeta inválida, etc.)"
-        ),
-        @ApiResponse(
-            responseCode = "500", 
-            description = "Error interno del servidor"
-        )
+    @Operation(summary = "Procesar una transacción", description = "Procesa una nueva transacción con validaciones")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Transacción procesada exitosamente"),
+        @ApiResponse(responseCode = "400", description = "Datos de transacción inválidos"),
+        @ApiResponse(responseCode = "500", description = "Error interno al procesar transacción")
     })
-    public ResponseEntity<TransaccionDTO> procesarTransaccion(
-            @Parameter(description = "Datos de la transacción a procesar", required = true)
-            @Valid @RequestBody TransaccionDTO transaccionDTO) {
-        log.info("Procesando nueva transacción desde gateway: {}", transaccionDTO);
+    public ResponseEntity<Object> procesarTransaccion(
+            @RequestBody @Valid TransaccionDTO transaccionDTO) {
+        log.info("Recibida solicitud para procesar una nueva transacción");
+        
         try {
             Transaccion transaccion = mapper.toEntity(transaccionDTO);
+            
+            // Capturar los valores de diferido y cuotas que no se mapean automáticamente
+            // pero son necesarios para procesarcores
+            Boolean esDiferido = transaccionDTO.getDiferido();
+            Integer numCuotas = transaccionDTO.getCuotas();
+            
+            // Establecer estos valores en el objeto de contexto
+            TransaccionContextHolder.setDiferido(esDiferido);
+            TransaccionContextHolder.setCuotas(numCuotas);
+            
             Transaccion resultado = service.procesarTransaccion(transaccion);
-            return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toDTO(resultado));
+            
+            // Limpiar el contexto
+            TransaccionContextHolder.clear();
+            
+            String mensaje;
+            HttpStatus status;
+            String detalleEstado = service.obtenerUltimoMensaje(resultado);
+            
+            // Definir mensaje según el estado final de la transacción
+            if (TransaccionService.ESTADO_COMPLETADA.equals(resultado.getEstado())) {
+                mensaje = "Transacción completada exitosamente. Código: " + resultado.getCodTransaccion();
+                status = HttpStatus.OK;
+            } else if (TransaccionService.ESTADO_RECHAZADA.equals(resultado.getEstado())) {
+                if (detalleEstado != null && !detalleEstado.isEmpty()) {
+                    mensaje = "Transacción rechazada: " + detalleEstado;
+                } else {
+                    mensaje = "Transacción rechazada: Validación fallida";
+                }
+                status = HttpStatus.OK;
+            } else if (TransaccionService.ESTADO_ERROR.equals(resultado.getEstado())) {
+                if (detalleEstado != null && !detalleEstado.isEmpty()) {
+                    mensaje = "Error al procesar transacción: " + detalleEstado;
+                } else {
+                    mensaje = "Error al procesar transacción";
+                }
+                status = HttpStatus.OK;
+            } else if (TransaccionService.ESTADO_FRAUDE.equals(resultado.getEstado())) {
+                if (detalleEstado != null && !detalleEstado.isEmpty()) {
+                    mensaje = "Transacción identificada como posible fraude: " + detalleEstado;
+                } else {
+                    mensaje = "Transacción identificada como posible fraude";
+                }
+                status = HttpStatus.OK;
+            } else {
+                if (detalleEstado != null && !detalleEstado.isEmpty()) {
+                    mensaje = "Transacción en estado " + resultado.getEstado() + ": " + detalleEstado;
+                } else {
+                    mensaje = "Transacción en estado: " + resultado.getEstado();
+                }
+                status = HttpStatus.OK;
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("mensaje", mensaje);
+            response.put("codTransaccion", resultado.getCodTransaccion());
+            response.put("estado", resultado.getEstado());
+            
+            return new ResponseEntity<>(response, status);
+            
         } catch (TransaccionRechazadaException e) {
             log.warn("Transacción rechazada: {}", e.getMessage());
-            throw e;
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("mensaje", "Transacción rechazada: " + e.getMessage());
+            response.put("estado", "RECHAZADA");
+            
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            log.error("Error al procesar transacción: {}", e.getMessage(), e);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("mensaje", "Error al procesar transacción: " + e.getMessage());
+            response.put("estado", "ERROR");
+            
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

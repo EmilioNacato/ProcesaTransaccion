@@ -7,6 +7,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+/**
+ * DTO para solicitud de validación de fraude
+ * Ajustado para coincidir con lo que espera el servicio validafraude
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -24,4 +28,13 @@ public class ValidacionFraudeRequest {
     
     @Schema(description = "Código SWIFT del banco", example = "BANKEC21")
     private String swiftBanco;
+    
+    @Schema(description = "Código del comercio", example = "COM12345")
+    private String codigoComercio;
+    
+    @Schema(description = "Código único de la transacción", example = "TRX1234567")
+    private String codigoUnico;
+    
+    @Schema(description = "Tipo de transacción", example = "Compra")
+    private String tipoTransaccion;
 } 

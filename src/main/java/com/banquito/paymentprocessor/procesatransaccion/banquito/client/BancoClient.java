@@ -10,6 +10,6 @@ import com.banquito.paymentprocessor.procesatransaccion.banquito.client.dto.Proc
 @FeignClient(name = "banco-service", url = "${app.banco-service.url}")
 public interface BancoClient {
     
-    @PostMapping("/api/v1/proceso")
+    @PostMapping("/api/v1/core/procesar-cores")
     ProcesoBancarioResponse procesarTransaccion(@RequestBody ProcesoBancarioRequest request);
 } 

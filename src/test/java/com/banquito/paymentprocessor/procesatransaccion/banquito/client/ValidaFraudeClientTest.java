@@ -46,9 +46,10 @@ public class ValidaFraudeClientTest {
     @Test
     public void validarTransaccion_sinFraude() throws Exception {
         ValidacionFraudeResponse responseDTO = new ValidacionFraudeResponse();
-        responseDTO.setTransaccionValida(true);
+        responseDTO.setEsFraude(false);
         responseDTO.setMensaje("No se detectó fraude");
-        responseDTO.setCodigoRespuesta("00");
+        responseDTO.setCodigoRegla("VALIDA");
+        responseDTO.setNivelRiesgo("BAJO");
         
         wireMockServer.stubFor(post(urlEqualTo("/api/v1/fraude/validar"))
                 .willReturn(aResponse()
@@ -59,23 +60,25 @@ public class ValidaFraudeClientTest {
         ValidacionFraudeRequest requestDTO = new ValidacionFraudeRequest();
         requestDTO.setNumeroTarjeta("4111111111111111");
         requestDTO.setMonto(new BigDecimal("100.00"));
-        requestDTO.setCodTransaccion("TRX1234567");
-        requestDTO.setSwiftBanco("BANKEC21");
+        requestDTO.setCodigoUnico("TRX1234567");
+        requestDTO.setCodigoComercio("COM123");
+        requestDTO.setTipoTransaccion("COMPRA");
 
         ValidacionFraudeResponse resultado = fraudeClient.validarTransaccion(requestDTO);
 
         assertNotNull(resultado);
-        assertTrue(resultado.getTransaccionValida());
+        assertFalse(resultado.getEsFraude());
         assertEquals("No se detectó fraude", resultado.getMensaje());
-        assertEquals("00", resultado.getCodigoRespuesta());
+        assertEquals("VALIDA", resultado.getCodigoRegla());
     }
 
     @Test
     public void validarTransaccion_conFraude() throws Exception {
         ValidacionFraudeResponse responseDTO = new ValidacionFraudeResponse();
-        responseDTO.setTransaccionValida(false);
+        responseDTO.setEsFraude(true);
         responseDTO.setMensaje("Posible fraude detectado");
-        responseDTO.setCodigoRespuesta("05");
+        responseDTO.setCodigoRegla("REGLA001");
+        responseDTO.setNivelRiesgo("ALTO");
         
         wireMockServer.stubFor(post(urlEqualTo("/api/v1/fraude/validar"))
                 .willReturn(aResponse()
@@ -85,15 +88,16 @@ public class ValidaFraudeClientTest {
 
         ValidacionFraudeRequest requestDTO = new ValidacionFraudeRequest();
         requestDTO.setNumeroTarjeta("4111111111111111");
-        requestDTO.setMonto(new BigDecimal("10000.00"));
-        requestDTO.setCodTransaccion("TRX1234567");
-        requestDTO.setSwiftBanco("BANKEC21");
+        requestDTO.setMonto(new BigDecimal("5000.00"));
+        requestDTO.setCodigoUnico("TRX1234567");
+        requestDTO.setCodigoComercio("COM123");
+        requestDTO.setTipoTransaccion("COMPRA");
 
         ValidacionFraudeResponse resultado = fraudeClient.validarTransaccion(requestDTO);
 
         assertNotNull(resultado);
-        assertFalse(resultado.getTransaccionValida());
+        assertTrue(resultado.getEsFraude());
         assertEquals("Posible fraude detectado", resultado.getMensaje());
-        assertEquals("05", resultado.getCodigoRespuesta());
+        assertEquals("REGLA001", resultado.getCodigoRegla());
     }
 } 
